@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fertility & Fertility Estimation in Demography</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0f1e;
+    --surface: #111827;
+    --accent: #e8c87a;
+    --accent2: #5b8dee;
+    --accent3: #e87a7a;
+    --text: #f0ece0;
+    --muted: #8a8fa8;
+    --card: rgba(255,255,255,0.04);
+    --border: rgba(232,200,122,0.18);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    cursor: default;
+  }
+
+  /* SLIDE WRAPPER */
+  #slideContainer {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 60px 80px;
+    opacity: 0;
+    pointer-events: none;
+    transition: none;
+  }
+
+  .slide.active {
+    opacity: 1;
+    pointer-events: all;
+    transform: translateX(0);
+    animation: slideIn 0.55s cubic-bezier(.22,.8,.35,1) forwards;
+  }
+
+  .slide.exit-left {
+    animation: exitLeft 0.45s cubic-bezier(.6,0,1,.4) forwards;
+  }
+  .slide.exit-right {
+    animation: exitRight 0.45s cubic-bezier(.6,0,1,.4) forwards;
+  }
+  .slide.enter-from-right {
+    animation: enterFromRight 0.55s cubic-bezier(.22,.8,.35,1) forwards;
+  }
+  .slide.enter-from-left {
+    animation: enterFromLeft 0.55s cubic-bezier(.22,.8,.35,1) forwards;
+  }
+
+  @keyframes exitLeft {
+    from { transform: translateX(0); opacity:1; }
+    to   { transform: translateX(-110vw); opacity:0; }
+  }
+  @keyframes exitRight {
+    from { transform: translateX(0); opacity:1; }
+    to   { transform: translateX(110vw); opacity:0; }
+  }
+  @keyframes enterFromRight {
+    from { transform: translateX(110vw); opacity:0; }
+    to   { transform: translateX(0); opacity:1; }
+  }
+  @keyframes enterFromLeft {
+    from { transform: translateX(-110vw); opacity:0; }
+    to   { transform: translateX(0); opacity:1; }
+  }
+  @keyframes slideIn {
+    from { transform: translateX(0); opacity:1; }
+    to   { transform: translateX(0); opacity:1; }
+  }
+
+  /* DECORATIVE BG */
+  .slide::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 70% 60% at 80% 20%, rgba(91,141,238,0.07) 0%, transparent 70%),
+                radial-gradient(ellipse 50% 40% at 10% 80%, rgba(232,200,122,0.05) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .slide > * { position: relative; z-index: 1; }
+
+  /* NAV */
+  #slideNumber {
+    position: fixed;
+    top: 24px;
+    right: 30px;
+    background: var(--accent);
+    color: #0a0f1e;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 8px 18px;
+    border-radius: 50px;
+    z-index: 100;
+    letter-spacing: 0.05em;
+    box-shadow: 0 4px 20px rgba(232,200,122,0.3);
+    transition: background 0.3s;
+  }
+
+  .nav-btn {
+    position: fixed;
+    bottom: 36px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    padding: 14px 34px;
+    border-radius: 50px;
+    cursor: pointer;
+    z-index: 100;
+    backdrop-filter: blur(12px);
+    transition: all 0.25s;
+    letter-spacing: 0.03em;
+  }
+  .nav-btn:hover { background: var(--accent); color: #0a0f1e; box-shadow: 0 6px 30px rgba(232,200,122,0.35); }
+  #prevBtn { left: 36px; }
+  #nextBtn { right: 36px; }
+
+  /* PROGRESS BAR */
+  #progressBar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: var(--accent);
+    z-index: 100;
+    transition: width 0.4s ease;
+    box-shadow: 0 0 12px rgba(232,200,122,0.6);
+  }
+
+  /* ── TITLE SLIDE ── */
+  .slide-title {
+    text-align: center;
+  }
+  .slide-title .kicker {
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    opacity: 0.85;
+  }
+  .slide-title h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(28px, 4.5vw, 58px);
+    font-weight: 900;
+    line-height: 1.1;
+    background: linear-gradient(135deg, #f0ece0 0%, #e8c87a 60%, #5b8dee 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 36px;
+  }
+  .members-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px 24px;
+    margin-bottom: 28px;
+    width: 100%;
+    max-width: 820px;
+  }
+  .member-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 16px;
+    text-align: left;
+  }
+  .member-card .mname { font-size: 14px; font-weight: 500; color: var(--text); }
+  .member-card .mid { font-size: 12px; color: var(--accent); font-family: monospace; }
+  .dept-line {
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    margin-top: 6px;
+  }
+  .dept-line span { color: var(--accent2); font-weight: 500; }
+
+  /* ── CONTENT SLIDES ── */
+  .slide-content {
+    width: 100%;
+    max-width: 1000px;
+  }
+  .slide-label {
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+    opacity: 0.7;
+  }
+  .slide-content h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(22px, 3vw, 40px);
+    font-weight: 700;
+    margin-bottom: 24px;
+    color: var(--text);
+    border-left: 4px solid var(--accent);
+    padding-left: 18px;
+    line-height: 1.2;
+  }
+  .slide-content h2 .hl { color: var(--accent); }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    width: 100%;
+  }
+  .three-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    width: 100%;
+  }
+
+  .info-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 22px;
+  }
+  .info-card h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .info-card p, .info-card li {
+    font-size: 14px;
+    color: #ccc;
+    line-height: 1.65;
+  }
+  .info-card ul { padding-left: 18px; }
+  .info-card li { margin-bottom: 4px; }
+
+  .formula-box {
+    background: rgba(91,141,238,0.08);
+    border: 1px solid rgba(91,141,238,0.25);
+    border-radius: 12px;
+    padding: 18px 24px;
+    margin-top: 16px;
+    text-align: center;
+  }
+  .formula-box .formula {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(16px, 2vw, 24px);
+    color: var(--accent2);
+    margin-bottom: 6px;
+  }
+  .formula-box .vars {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  .bullet-list {
+    list-style: none;
+    padding: 0;
+  }
+  .bullet-list li {
+    font-size: 15px;
+    color: #ccc;
+    padding: 8px 0 8px 28px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    position: relative;
+    line-height: 1.6;
+  }
+  .bullet-list li::before {
+    content: '◆';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-size: 9px;
+    top: 12px;
+  }
+
+  .highlight-text {
+    font-size: 14px;
+    line-height: 1.7;
+    color: #bbb;
+  }
+  .highlight-text strong { color: var(--accent); }
+
+  .tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .tag {
+    background: rgba(232,200,122,0.1);
+    border: 1px solid rgba(232,200,122,0.25);
+    color: var(--accent);
+    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 50px;
+  }
+
+  .measures-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    width: 100%;
+  }
+  .measure-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    text-align: center;
+    transition: border-color 0.25s, transform 0.25s;
+  }
+  .measure-card:hover { border-color: var(--accent); transform: translateY(-3px); }
+  .measure-card .abbr {
+    font-family: 'Playfair Display', serif;
+    font-size: 26px;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .measure-card .full { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  canvas { max-height: 260px; }
+
+  .steps-list {
+    counter-reset: steps;
+    list-style: none;
+    padding: 0;
+  }
+  .steps-list li {
+    counter-increment: steps;
+    font-size: 14px;
+    color: #ccc;
+    padding: 10px 0 10px 48px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    position: relative;
+    line-height: 1.6;
+  }
+  .steps-list li::before {
+    content: counter(steps);
+    position: absolute;
+    left: 0;
+    top: 8px;
+    background: var(--accent);
+    color: #0a0f1e;
+    font-weight: 700;
+    font-size: 13px;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .compare-table th {
+    background: rgba(232,200,122,0.12);
+    color: var(--accent);
+    padding: 12px 16px;
+    text-align: left;
+    font-family: 'Playfair Display', serif;
+    border-bottom: 2px solid var(--border);
+  }
+  .compare-table td {
+    padding: 11px 16px;
+    color: #ccc;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    line-height: 1.5;
+  }
+  .compare-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .conclusion-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    width: 100%;
+  }
+  .conclusion-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .conclusion-card .icon {
+    font-size: 28px;
+    flex-shrink: 0;
+  }
+  .conclusion-card h4 {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .conclusion-card p { font-size: 13px; color: #bbb; line-height: 1.6; }
+
+  /* decorative line */
+  .deco-line {
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+    width: 60px;
+    margin-bottom: 20px;
+  }
+</style>
+</head>
+<body>
+
+<div id="slideNumber">1 / 20</div>
+<div id="progressBar"></div>
+
+<div id="slideContainer">
+
+  <!-- SLIDE 1: Title -->
+  <div class="slide active" data-index="0">
+    <div class="slide-title">
+      <div class="kicker">Department of Statistics · University</div>
+      <h1>Fertility & Fertility Estimation<br>in Demography</h1>
+      <div class="members-grid">
+        <div class="member-card"><div class="mname">Abu Sayed Rifat</div><div class="mid">2210227103</div></div>
+        <div class="member-card"><div class="mname">Emran Ali</div><div class="mid">2210527166</div></div>
+        <div class="member-card"><div class="mname">Sourav</div><div class="mid">2210627120</div></div>
+        <div class="member-card"><div class="mname">Jubayer Ahmed</div><div class="mid">2210727146</div></div>
+        <div class="member-card"><div class="mname">Abdul Momin</div><div class="mid">2210327137</div></div>
+        <div class="member-card"><div class="mname">Morsalin Islam Sifat</div><div class="mid">2210227148</div></div>
+      </div>
+      <div class="dept-line">Presented to <span>Department of Statistics</span> · Rajshahi University</div>
+    </div>
+  </div>
+
+  <!-- SLIDE 2: Introduction to Fertility -->
+  <div class="slide" data-index="1">
+    <div class="slide-content">
+      <div class="slide-label">Slide 02 · Introduction</div>
+      <h2>Introduction to <span class="hl">Fertility</span></h2>
+      <div class="two-col">
+        <div class="info-card">
+          <h3>🌱 Fertility</h3>
+          <p>Fertility refers to the <strong style="color:var(--accent)">actual reproductive performance</strong> of women. It indicates the actual number of children women have given birth to in a population during a specified period.</p>
+          <div style="margin-top:12px;padding:10px;background:rgba(232,200,122,0.06);border-radius:8px;font-size:13px;color:var(--accent)">
+            Key Point: Fertility = Actual Childbearing Performance
+          </div>
+        </div>
+        <div class="info-card">
+          <h3>🧬 Fecundity</h3>
+          <p>Fecundity refers to the <strong style="color:var(--accent2)">biological potential</strong> or capacity of women to have children — the physiological ability to conceive and bear children, regardless of whether that ability is exercised.</p>
+          <div style="margin-top:12px;padding:10px;background:rgba(91,141,238,0.06);border-radius:8px;font-size:13px;color:var(--accent2)">
+            Key Point: Fecundity = Biological Ability to Reproduce
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:18px" class="info-card">
+        <p style="font-size:14px;color:#bbb;">While every healthy woman of reproductive age has <strong style="color:var(--accent)">fecundity</strong> (the biological capacity), not all of them exercise it — actual births depend on social, economic, and cultural factors, resulting in measured <strong style="color:var(--accent2)">fertility</strong>.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 3: Difference -->
+  <div class="slide" data-index="2">
+    <div class="slide-content">
+      <div class="slide-label">Slide 03 · Comparison</div>
+      <h2>Fertility vs <span class="hl">Fecundity</span></h2>
+      <table class="compare-table">
+        <thead>
+          <tr><th>Aspect</th><th>Fertility</th><th>Fecundity</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Definition</td><td>Actual number of children born</td><td>Biological ability to have children</td></tr>
+          <tr><td>Nature</td><td>Behavioural / Social</td><td>Physiological / Biological</td></tr>
+          <tr><td>Measurement</td><td>Measured by birth statistics (CBR, TFR…)</td><td>Difficult to measure directly</td></tr>
+          <tr><td>Influencing Factors</td><td>Education, income, culture, policy</td><td>Age, health, hormones, genetics</td></tr>
+          <tr><td>Relationship</td><td>Always ≤ Fecundity</td><td>Upper limit of fertility</td></tr>
+          <tr><td>Example</td><td>A woman bearing 3 children</td><td>A woman capable of bearing children</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SLIDE 4: Fertility Research -->
+  <div class="slide" data-index="3">
+    <div class="slide-content">
+      <div class="slide-label">Slide 04 · Research</div>
+      <h2><span class="hl">Fertility</span> Research</h2>
+      <div class="two-col">
+        <div>
+          <div class="info-card" style="margin-bottom:14px">
+            <h3>📋 Definition</h3>
+            <p>The scientific study of human reproduction including measurement, analysis, and interpretation of fertility <strong style="color:var(--accent)">levels, trends, and differentials</strong>.</p>
+          </div>
+          <div class="info-card">
+            <h3>🎯 Importance</h3>
+            <ul class="bullet-list" style="margin-top:0">
+              <li>Guides population policy</li>
+              <li>Informs family planning programs</li>
+              <li>Supports health resource allocation</li>
+              <li>Predicts future population size</li>
+            </ul>
+          </div>
+        </div>
+        <div class="info-card">
+          <h3>⚙️ Factors Affecting Fertility</h3>
+          <div class="tag-list" style="margin-top:10px">
+            <span class="tag">Biological</span>
+            <span class="tag">Social</span>
+            <span class="tag">Economic</span>
+            <span class="tag">Cultural</span>
+            <span class="tag">Behavioural</span>
+            <span class="tag">Policy-related</span>
+          </div>
+          <p style="font-size:13px;color:#999;margin-top:14px;line-height:1.65">These factors interact in complex ways to determine how many children women choose to have and when — shaping the demographic future of every nation.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 5: Measures Overview -->
+  <div class="slide" data-index="4">
+    <div class="slide-content">
+      <div class="slide-label">Slide 05 · Overview</div>
+      <h2>Measures of <span class="hl">Fertility</span></h2>
+      <div class="measures-grid">
+        <div class="measure-card"><div class="abbr">CBR</div><div class="full">Crude Birth Rate</div></div>
+        <div class="measure-card"><div class="abbr">GFR</div><div class="full">General Fertility Rate</div></div>
+        <div class="measure-card"><div class="abbr">ASFR</div><div class="full">Age-Specific Fertility Rate</div></div>
+        <div class="measure-card"><div class="abbr">TFR</div><div class="full">Total Fertility Rate</div></div>
+        <div class="measure-card"><div class="abbr">CWR</div><div class="full">Child–Woman Ratio</div></div>
+        <div class="measure-card"><div class="abbr">CEB</div><div class="full">Children Ever Born</div></div>
+      </div>
+      <div style="margin-top:20px" class="info-card">
+        <p style="font-size:14px;color:#bbb">These six measures range from <strong style="color:var(--accent)">simple period indicators</strong> (CBR) to <strong style="color:var(--accent2)">refined synthetic cohort measures</strong> (TFR), each suited to different data availability and analytical needs.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 6: CBR -->
+  <div class="slide" data-index="5">
+    <div class="slide-content">
+      <div class="slide-label">Slide 06 · Fertility Measure</div>
+      <h2>Crude Birth Rate <span class="hl">(CBR)</span></h2>
+      <div class="two-col">
+        <div>
+          <div class="info-card">
+            <h3>📖 Definition</h3>
+            <p>The number of live births during a specified period (usually a calendar year) per 1,000 population in the middle of that period.</p>
+          </div>
+          <div class="formula-box" style="margin-top:14px">
+            <div class="formula">CBR = (B / P) × 1000</div>
+            <div class="vars">B = Number of live births<br>P = Mid-year total population</div>
+          </div>
+          <div class="info-card" style="margin-top:14px">
+            <h3>⚠️ Limitation</h3>
+            <p style="font-size:13px">Uses entire population in denominator — includes men, children, and elderly — making it a <em>crude</em> (rough) measure.</p>
+          </div>
+        </div>
+        <div>
+          <canvas id="cbrChart"></canvas>
+          <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px">Global CBR Comparison (per 1,000) – Selected Countries</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 7: GFR -->
+  <div class="slide" data-index="6">
+    <div class="slide-content">
+      <div class="slide-label">Slide 07 · Fertility Measure</div>
+      <h2>General Fertility Rate <span class="hl">(GFR)</span></h2>
+      <div class="two-col">
+        <div>
+          <div class="info-card">
+            <h3>📖 Definition</h3>
+            <p>The number of live births per year per 1,000 women of childbearing age (15–49). More refined than CBR as it restricts the denominator to women at risk.</p>
+          </div>
+          <div class="formula-box" style="margin-top:14px">
+            <div class="formula">GFR = (B / W<sub>15-49</sub>) × 1000</div>
+            <div class="vars">B = Live births in a year<br>W<sub>15-49</sub> = Mid-year women aged 15–49</div>
+          </div>
+          <div style="margin-top:14px;background:rgba(91,141,238,0.08);border:1px solid rgba(91,141,238,0.2);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--accent2)">
+            ✅ More accurate than CBR — denominator limited to women of reproductive age
+          </div>
+        </div>
+        <div class="info-card" style="display:flex;flex-direction:column;justify-content:center">
+          <h3>CBR vs GFR</h3>
+          <canvas id="gfrChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 8: ASFR -->
+  <div class="slide" data-index="7">
+    <div class="slide-content">
+      <div class="slide-label">Slide 08 · Fertility Measure</div>
+      <h2>Age-Specific Fertility Rate <span class="hl">(ASFR)</span></h2>
+      <div class="two-col">
+        <div>
+          <div class="info-card">
+            <h3>📖 Definition</h3>
+            <p>Live births to women in a specific age group divided by the number of women-years lived in that age group. Shows fertility at each stage of reproductive life.</p>
+          </div>
+          <div class="formula-box" style="margin-top:14px">
+            <div class="formula">ASFR = (B<sub>i</sub> / W<sub>i</sub>) × 1000</div>
+            <div class="vars">B<sub>i</sub> = Births to women of age group i<br>W<sub>i</sub> = Women in age group i</div>
+          </div>
+          <div class="info-card" style="margin-top:14px">
+            <p style="font-size:13px">Computed for five-year age groups: 15–19, 20–24, 25–29, 30–34, 35–39, 40–44, 45–49</p>
+          </div>
+        </div>
+        <div>
+          <canvas id="asfrChart"></canvas>
+          <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">Typical ASFR schedule (per 1,000 women)</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 9: TFR -->
+  <div class="slide" data-index="8">
+    <div class="slide-content">
+      <div class="slide-label">Slide 09 · Fertility Measure</div>
+      <h2>Total Fertility Rate <span class="hl">(TFR)</span></h2>
+      <div class="two-col">
+        <div>
+          <div class="info-card">
+            <h3>📖 Definition</h3>
+            <p>The average number of children a woman would have if she lived through her reproductive years experiencing the current age-specific fertility rates. The most widely used fertility indicator.</p>
+          </div>
+          <div class="formula-box" style="margin-top:14px">
+            <div class="formula">TFR = i × Σ (B<sub>i</sub> / W<sub>i</sub>)</div>
+            <div class="vars">i = 1 (single-year) or 5 (five-year groups)<br>Summed from age 15 to 49</div>
+          </div>
+          <div style="margin-top:14px;background:rgba(232,200,122,0.08);border:1px solid rgba(232,200,122,0.2);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--accent)">
+            🌍 Replacement level TFR ≈ 2.1 children per woman
+          </div>
+        </div>
+        <div>
+          <canvas id="tfrChart"></canvas>
+          <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">TFR trends – Bangladesh & Selected Countries</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 10: CWR -->
+  <div class="slide" data-index="9">
+    <div class="slide-content">
+      <div class="slide-label">Slide 10 · Fertility Measure</div>
+      <h2>Child–Woman Ratio <span class="hl">(CWR)</span></h2>
+      <div class="two-col">
+        <div>
+          <div class="info-card">
+            <h3>📖 Definition</h3>
+            <p>The ratio of children under 5 years to women aged 15–49. Used where vital registration of births is absent or unreliable.</p>
+          </div>
+          <div class="formula-box" style="margin-top:14px">
+            <div class="formula">CWR = (P<sub>0-4</sub> / W<sub>15-49</sub>) × 1000</div>
+            <div class="vars">P<sub>0-4</sub> = Children under 5 years (both sexes)<br>W<sub>15-49</sub> = Women aged 15–49</div>
+          </div>
+          <div class="info-card" style="margin-top:14px">
+            <h3>🔍 Use Case</h3>
+            <p style="font-size:13px">Particularly useful in <strong style="color:var(--accent)">developing countries</strong> with weak civil registration systems — can be computed from census data alone.</p>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="info-card">
+            <h3>✅ Advantages</h3>
+            <ul class="bullet-list"><li>No birth registration needed</li><li>Computable from census</li><li>Simple to interpret</li></ul>
+          </div>
+          <div class="info-card">
+            <h3>⚠️ Limitations</h3>
+            <ul class="bullet-list"><li>Affected by child mortality</li><li>Undercount of young children</li><li>Less precise than direct measures</li></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 11: CEB -->
+  <div class="slide" data-index="10">
+    <div class="slide-content">
+      <div class="slide-label">Slide 11 · Fertility Measure</div>
+      <h2>Children Ever Born <span class="hl">(CEB)</span></h2>
+      <div class="two-col">
+        <div>
+          <div class="info-card">
+            <h3>📖 Definition</h3>
+            <p>The mean number of children born alive to women in a specific age group. Reflects a woman's <strong style="color:var(--accent)">lifetime fertility experience</strong> up to the moment of data collection.</p>
+          </div>
+          <div class="formula-box" style="margin-top:14px">
+            <div class="formula">CEB = Dead Children + Surviving Children</div>
+            <div class="vars">Includes all children ever born alive,<br>regardless of current survival status</div>
+          </div>
+          <div class="info-card" style="margin-top:14px">
+            <p style="font-size:13px">CEB by age group traces the <strong style="color:var(--accent)">cumulative fertility</strong> across a woman's reproductive life — foundational for indirect estimation methods.</p>
+          </div>
+        </div>
+        <div>
+          <canvas id="cebChart"></canvas>
+          <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">Average CEB by age group of women</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 12: Indirect Estimation -->
+  <div class="slide" data-index="11">
+    <div class="slide-content">
+      <div class="slide-label">Slide 12 · Methods</div>
+      <h2>Indirect Fertility <span class="hl">Estimation</span></h2>
+      <div class="two-col">
+        <div>
+          <div class="info-card">
+            <h3>📖 Definition</h3>
+            <p>A set of demographic techniques designed to measure fertility when reliable birth statistics are <strong style="color:var(--accent)">not available</strong>. Uses incomplete or defective data and applies model age patterns to derive ASFRs and overall fertility levels.</p>
+          </div>
+          <div class="info-card" style="margin-top:14px">
+            <h3>📊 Data Used</h3>
+            <ul class="bullet-list">
+              <li>Age distribution of women</li>
+              <li>Children ever born (CEB)</li>
+              <li>Recent births (past 12 months)</li>
+              <li>Model fertility schedules</li>
+            </ul>
+          </div>
+        </div>
+        <div class="info-card">
+          <h3>⚠️ Problems with Direct Methods</h3>
+          <ul class="bullet-list" style="margin-top:8px">
+            <li>Underreporting of births</li>
+            <li>Age misstatement of mothers</li>
+            <li>Omission of deceased children</li>
+            <li>Inconsistent reporting of recent fertility</li>
+            <li>Absence of civil registration systems</li>
+            <li>Incomplete or outdated census data</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 13: Necessity -->
+  <div class="slide" data-index="12">
+    <div class="slide-content">
+      <div class="slide-label">Slide 13 · Necessity</div>
+      <h2>Necessity of Indirect <span class="hl">Estimation</span></h2>
+      <div class="two-col">
+        <div>
+          <div class="info-card">
+            <h3>🌍 Developing Countries Context</h3>
+            <p>Many developing nations lack functioning civil registration systems. Census data is often the only available source — making indirect techniques <strong style="color:var(--accent)">essential</strong> for fertility estimation.</p>
+          </div>
+          <div class="info-card" style="margin-top:14px">
+            <h3>🔧 Key Indirect Methods</h3>
+            <ul class="bullet-list">
+              <li>Brass P/F Ratio Method</li>
+              <li>Relational Gompertz Model</li>
+              <li>Trussell variant of Brass method</li>
+              <li>Model fertility schedules (Coale-Trussell)</li>
+            </ul>
+          </div>
+        </div>
+        <div class="info-card">
+          <h3>📈 Why Model Schedules?</h3>
+          <p style="margin-bottom:12px;font-size:14px">Indirect methods apply <strong style="color:var(--accent)">model fertility schedules</strong> that represent the typical age pattern of fertility, then:</p>
+          <ul class="bullet-list">
+            <li>Apply internal consistency checks to identify errors</li>
+            <li>Use adjustment procedures to correct biases</li>
+            <li>Combine period and cohort data for robustness</li>
+            <li>Produce demographically plausible estimates</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 14: Fertility Level -->
+  <div class="slide" data-index="13">
+    <div class="slide-content">
+      <div class="slide-label">Slide 14 · Concept</div>
+      <h2>Fertility <span class="hl">Level</span></h2>
+      <div class="two-col">
+        <div>
+          <div class="info-card">
+            <h3>📖 Definition</h3>
+            <p>Fertility level refers to the <strong style="color:var(--accent)">actual number of children born</strong> to women in a specific population during a certain period — the quantum of childbearing at a point in time.</p>
+          </div>
+          <div class="info-card" style="margin-top:14px">
+            <h3>📊 Key Indicators</h3>
+            <div class="tag-list">
+              <span class="tag">TFR — most complete</span>
+              <span class="tag">CBR — simplest</span>
+              <span class="tag">GFR — refined</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <canvas id="levelChart"></canvas>
+          <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">Bangladesh TFR 1970–2020 (fertility level decline)</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 15: Trends -->
+  <div class="slide" data-index="14">
+    <div class="slide-content">
+      <div class="slide-label">Slide 15 · Analysis</div>
+      <h2>Trends in <span class="hl">Fertility</span></h2>
+      <div class="two-col">
+        <div>
+          <div class="info-card">
+            <h3>📖 Definition</h3>
+            <p>Changes in fertility levels <strong style="color:var(--accent)">over time</strong> within a population — the direction and pace of change across years or decades.</p>
+          </div>
+          <div class="info-card" style="margin-top:14px">
+            <h3>⚙️ Influencing Factors</h3>
+            <ul class="bullet-list">
+              <li>Rise in female education levels</li>
+              <li>Urbanisation and economic development</li>
+              <li>Expansion of family planning programs</li>
+              <li>Women's labour force participation</li>
+              <li>Changes in marriage age</li>
+            </ul>
+          </div>
+        </div>
+        <div>
+          <canvas id="trendsChart"></canvas>
+          <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">Global fertility trend – TFR over decades</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 16: Patterns -->
+  <div class="slide" data-index="15">
+    <div class="slide-content">
+      <div class="slide-label">Slide 16 · Analysis</div>
+      <h2>Fertility <span class="hl">Patterns</span></h2>
+      <div class="two-col">
+        <div>
+          <div class="info-card">
+            <h3>📖 Definition</h3>
+            <p>The distribution of births across different <strong style="color:var(--accent)">age groups, cohorts, or time periods</strong> within a population — the shape and timing of childbearing.</p>
+          </div>
+          <div class="info-card" style="margin-top:14px">
+            <h3>🔍 Analytical Tools</h3>
+            <ul class="bullet-list">
+              <li>ASFR — age pattern of fertility</li>
+              <li>Cohort fertility analysis</li>
+              <li>Period vs cohort comparisons</li>
+              <li>Parity progression ratios</li>
+            </ul>
+          </div>
+        </div>
+        <div>
+          <canvas id="patternChart"></canvas>
+          <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">Fertility pattern comparison: early vs delayed childbearing</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 17: Birth History -->
+  <div class="slide" data-index="16">
+    <div class="slide-content">
+      <div class="slide-label">Slide 17 · Methods</div>
+      <h2>Birth History <span class="hl">Analysis</span></h2>
+      <div class="two-col">
+        <div>
+          <div class="info-card">
+            <h3>📖 Definition</h3>
+            <p>A method used in demography to gather detailed information about a woman's complete <strong style="color:var(--accent)">reproductive history</strong> through retrospective interviews — collecting data on each birth she experienced.</p>
+          </div>
+          <div class="info-card" style="margin-top:14px">
+            <h3>🎯 Purpose</h3>
+            <p style="font-size:13px">Provides comprehensive overview of fertility patterns, especially where vital registration is incomplete or unreliable. Used in DHS, MICS, and similar surveys.</p>
+          </div>
+        </div>
+        <div class="info-card">
+          <h3>📋 Steps in Birth History Analysis</h3>
+          <ol class="steps-list" style="margin-top:10px">
+            <li><strong>Data Collection:</strong> Interview women on each birth — date, survival status, birth order</li>
+            <li><strong>Compilation:</strong> Organise individual histories into an analysable dataset</li>
+            <li><strong>Calculation:</strong> Compute TFR, ASFR and other fertility indicators</li>
+            <li><strong>Analysis:</strong> Identify trends, patterns, and demographic differentials over time</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 18: Birth Interval -->
+  <div class="slide" data-index="17">
+    <div class="slide-content">
+      <div class="slide-label">Slide 18 · Methods</div>
+      <h2>Birth Interval <span class="hl">Analysis</span></h2>
+      <div class="two-col">
+        <div>
+          <div class="info-card">
+            <h3>📖 Definition</h3>
+            <p>Study of the <strong style="color:var(--accent)">time elapsed between consecutive births</strong> — the spacing between a woman's successive children. Drawn from birth history data.</p>
+          </div>
+          <div class="formula-box" style="margin-top:14px">
+            <div class="formula" style="font-size:16px">Birth Interval = Date of Birth (n+1) − Date of Birth (n)</div>
+          </div>
+          <div class="info-card" style="margin-top:14px">
+            <h3>⏱️ Categories</h3>
+            <ul class="bullet-list">
+              <li><strong style="color:var(--accent3)">Short</strong> — &lt;18 months (high risk)</li>
+              <li><strong style="color:var(--accent)">Medium</strong> — 18–36 months (optimal)</li>
+              <li><strong style="color:var(--accent2)">Long</strong> — &gt;36 months</li>
+            </ul>
+          </div>
+        </div>
+        <div>
+          <canvas id="intervalChart"></canvas>
+          <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">Distribution of birth intervals in a population</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 19: Difference BH vs BI -->
+  <div class="slide" data-index="18">
+    <div class="slide-content">
+      <div class="slide-label">Slide 19 · Comparison</div>
+      <h2>Birth History vs <span class="hl">Birth Interval</span></h2>
+      <table class="compare-table">
+        <thead>
+          <tr><th>Aspect</th><th>Birth History Analysis</th><th>Birth Interval Analysis</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Focus</td><td>Complete reproductive history of women</td><td>Spacing between consecutive births</td></tr>
+          <tr><td>Unit</td><td>Each birth event (date, order, survival)</td><td>Time gap between pairs of births</td></tr>
+          <tr><td>Scope</td><td>Lifetime fertility experience</td><td>Inter-birth timing and spacing</td></tr>
+          <tr><td>Output</td><td>TFR, ASFR, parity distribution</td><td>Mean interval, short/long intervals</td></tr>
+          <tr><td>Health Link</td><td>Mortality trends, cohort comparison</td><td>Maternal & child health outcomes</td></tr>
+          <tr><td>Data Source</td><td>Retrospective interviews (DHS, MICS)</td><td>Derived from birth histories</td></tr>
+          <tr><td>Key Use</td><td>Fertility level and trend estimation</td><td>Family planning, spacing counselling</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SLIDE 20: Conclusion -->
+  <div class="slide" data-index="19">
+    <div class="slide-content">
+      <div class="slide-label">Slide 20 · Conclusion</div>
+      <h2><span class="hl">Conclusion</span></h2>
+      <div class="conclusion-grid">
+        <div class="conclusion-card">
+          <div class="icon">📊</div>
+          <div>
+            <h4>Fertility as a Demographic Indicator</h4>
+            <p>Fertility is a fundamental demographic indicator reflecting the reproductive behaviour of populations. Measures like TFR, CBR, and ASFR quantify it with different levels of precision.</p>
+          </div>
+        </div>
+        <div class="conclusion-card">
+          <div class="icon">🔍</div>
+          <div>
+            <h4>Indirect Estimation is Critical</h4>
+            <p>In data-scarce settings, indirect techniques are indispensable. They transform incomplete census data into reliable fertility estimates through model schedules and consistency checks.</p>
+          </div>
+        </div>
+        <div class="conclusion-card">
+          <div class="icon">📋</div>
+          <div>
+            <h4>Birth History Analysis</h4>
+            <p>Provides a comprehensive retrospective picture of reproductive behaviour, enabling calculation of period and cohort fertility indicators where registration systems are weak.</p>
+          </div>
+        </div>
+        <div class="conclusion-card">
+          <div class="icon">⏱️</div>
+          <div>
+            <h4>Birth Interval Analysis</h4>
+            <p>Highlights the health implications of birth spacing — short intervals elevate maternal and infant mortality risk, making this analysis vital for family planning programs.</p>
+          </div>
+        </div>
+      </div>
+      
+    </div>
+  </div>
+
+   <!-- SLIDE 1: Title -->
+  <div class="slide " data-index="21">
+    <div class="slide-title">
+      
+      <h1>Thank You</h1>
+      
+      
+    </div>
+  </div>
+
+</div>
+
+<button class="nav-btn" id="prevBtn">← Previous</button>
+<button class="nav-btn" id="nextBtn">Next →</button>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const totalSlides = slides.length;
+  let current = 0;
+  let animating = false;
+
+  function goTo(index, direction) {
+    if (animating || index === current || index < 0 || index >= totalSlides) return;
+    animating = true;
+
+    const exitClass = direction === 'next' ? 'exit-left' : 'exit-right';
+    const enterClass = direction === 'next' ? 'enter-from-right' : 'enter-from-left';
+
+    const oldSlide = slides[current];
+    const newSlide = slides[index];
+
+    oldSlide.classList.add(exitClass);
+    newSlide.style.opacity = '1';
+    newSlide.classList.add(enterClass);
+
+    setTimeout(() => {
+      oldSlide.classList.remove('active', exitClass);
+      oldSlide.style.opacity = '';
+      newSlide.classList.remove(enterClass);
+      newSlide.classList.add('active');
+      current = index;
+      updateUI();
+      animating = false;
+    }, 500);
+  }
+
+  function updateUI() {
+    document.getElementById('slideNumber').textContent = `${current + 1} / ${totalSlides}`;
+    const pct = ((current + 1) / totalSlides) * 100;
+    document.getElementById('progressBar').style.width = pct + '%';
+    document.getElementById('prevBtn').style.opacity = current === 0 ? '0.35' : '1';
+    document.getElementById('nextBtn').style.opacity = current === totalSlides - 1 ? '0.35' : '1';
+  }
+
+  document.getElementById('nextBtn').addEventListener('click', () => goTo(current + 1, 'next'));
+  document.getElementById('prevBtn').addEventListener('click', () => goTo(current - 1, 'prev'));
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') goTo(current + 1, 'next');
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') goTo(current - 1, 'prev');
+  });
+
+  updateUI();
+
+  // ── CHARTS ──
+  const chartDef = {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: { legend: { labels: { color: '#ccc', font: { family: 'DM Sans', size: 12 } } } },
+    scales: {
+      x: { ticks: { color: '#888', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+      y: { ticks: { color: '#888', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,0.05)' } }
+    }
+  };
+
+  // CBR Chart
+  new Chart(document.getElementById('cbrChart'), {
+    type: 'bar',
+    data: {
+      labels: ['Niger', 'Mali', 'Bangladesh', 'India', 'China', 'Germany', 'Japan'],
+      datasets: [{ label: 'CBR (per 1,000)', data: [47, 43, 17, 17, 10, 9, 7],
+        backgroundColor: ['#e87a7a','#e8a07a','#e8c87a','#c8e87a','#7ae8c8','#7ab8e8','#b87ae8'],
+        borderRadius: 6 }]
+    },
+    options: { ...chartDef, plugins: { ...chartDef.plugins, legend: { display: false } } }
+  });
+
+  // GFR comparison
+  new Chart(document.getElementById('gfrChart'), {
+    type: 'bar',
+    data: {
+      labels: ['Bangladesh\n2000', 'Bangladesh\n2010', 'Bangladesh\n2020'],
+      datasets: [
+        { label: 'CBR', data: [27, 21, 17], backgroundColor: 'rgba(232,200,122,0.7)', borderRadius: 4 },
+        { label: 'GFR', data: [112, 88, 68], backgroundColor: 'rgba(91,141,238,0.7)', borderRadius: 4 }
+      ]
+    },
+    options: { ...chartDef }
+  });
+
+  // ASFR Chart
+  new Chart(document.getElementById('asfrChart'), {
+    type: 'line',
+    data: {
+      labels: ['15-19','20-24','25-29','30-34','35-39','40-44','45-49'],
+      datasets: [{ label: 'ASFR', data: [68, 165, 140, 90, 45, 15, 3],
+        borderColor: '#e8c87a', backgroundColor: 'rgba(232,200,122,0.1)',
+        pointBackgroundColor: '#e8c87a', tension: 0.45, fill: true, pointRadius: 5 }]
+    },
+    options: { ...chartDef }
+  });
+
+  // TFR Chart
+  new Chart(document.getElementById('tfrChart'), {
+    type: 'line',
+    data: {
+      labels: ['1970','1980','1990','2000','2010','2020'],
+      datasets: [
+        { label: 'Bangladesh', data: [6.9, 5.8, 4.3, 3.0, 2.5, 2.1], borderColor: '#e8c87a', backgroundColor: 'rgba(232,200,122,0.1)', tension: 0.4, fill: true, pointRadius: 4 },
+        { label: 'World Avg', data: [4.5, 3.7, 3.1, 2.7, 2.5, 2.3], borderColor: '#5b8dee', backgroundColor: 'rgba(91,141,238,0.05)', tension: 0.4, fill: false, pointRadius: 4 }
+      ]
+    },
+    options: { ...chartDef }
+  });
+
+  // CEB Chart
+  new Chart(document.getElementById('cebChart'), {
+    type: 'bar',
+    data: {
+      labels: ['20-24','25-29','30-34','35-39','40-44','45-49'],
+      datasets: [{ label: 'Mean CEB', data: [0.8, 1.8, 2.9, 3.6, 4.0, 4.2],
+        backgroundColor: 'rgba(91,141,238,0.7)', borderRadius: 5 }]
+    },
+    options: { ...chartDef }
+  });
+
+  // Level / Bangladesh TFR decline
+  new Chart(document.getElementById('levelChart'), {
+    type: 'line',
+    data: {
+      labels: ['1970','1975','1980','1985','1990','1995','2000','2005','2010','2015','2020'],
+      datasets: [{ label: 'TFR – Bangladesh', data: [6.9, 6.2, 5.8, 5.1, 4.3, 3.4, 3.0, 2.7, 2.5, 2.3, 2.1],
+        borderColor: '#e8c87a', backgroundColor: 'rgba(232,200,122,0.08)',
+        fill: true, tension: 0.4, pointRadius: 4, pointBackgroundColor: '#e8c87a' }]
+    },
+    options: { ...chartDef }
+  });
+
+  // Trends global
+  new Chart(document.getElementById('trendsChart'), {
+    type: 'line',
+    data: {
+      labels: ['1960','1970','1980','1990','2000','2010','2020'],
+      datasets: [
+        { label: 'Sub-Saharan Africa', data: [6.7, 6.7, 6.6, 6.2, 5.6, 5.1, 4.6], borderColor: '#e87a7a', tension: 0.4 },
+        { label: 'South Asia', data: [5.9, 5.5, 5.0, 4.2, 3.3, 2.7, 2.2], borderColor: '#e8c87a', tension: 0.4 },
+        { label: 'World', data: [4.9, 4.5, 3.7, 3.1, 2.7, 2.5, 2.3], borderColor: '#5b8dee', tension: 0.4 },
+        { label: 'East Asia', data: [5.9, 4.7, 2.7, 2.2, 1.8, 1.6, 1.5], borderColor: '#7ae8c8', tension: 0.4 }
+      ]
+    },
+    options: { ...chartDef }
+  });
+
+  // Patterns — early vs delayed
+  new Chart(document.getElementById('patternChart'), {
+    type: 'radar',
+    data: {
+      labels: ['15-19','20-24','25-29','30-34','35-39','40-44','45-49'],
+      datasets: [
+        { label: 'Developing Countries (early)', data: [80, 170, 140, 85, 40, 12, 2],
+          borderColor: '#e8c87a', backgroundColor: 'rgba(232,200,122,0.1)', pointRadius: 3 },
+        { label: 'Developed Countries (delayed)', data: [15, 55, 120, 140, 85, 25, 3],
+          borderColor: '#5b8dee', backgroundColor: 'rgba(91,141,238,0.1)', pointRadius: 3 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { labels: { color: '#ccc', font: { size: 11 } } } },
+      scales: { r: { ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.08)' }, pointLabels: { color: '#aaa', font: { size: 11 } } } }
+    }
+  });
+
+  // Birth Interval distribution
+  new Chart(document.getElementById('intervalChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Short (<18 mo)', 'Medium (18–36 mo)', 'Long (>36 mo)'],
+      datasets: [{ data: [22, 48, 30],
+        backgroundColor: ['rgba(232,122,122,0.85)','rgba(232,200,122,0.85)','rgba(91,141,238,0.85)'],
+        borderWidth: 0 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { position: 'bottom', labels: { color: '#ccc', font: { size: 12 } } } }
+    }
+  });
+</script>
+</body>
+</html>
